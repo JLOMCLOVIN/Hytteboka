@@ -411,17 +411,32 @@
     $('steg-kode').hidden=true; $('steg-epost').hidden=false;
   };
   $('btn-verifiser').onclick = async () => {
-    const kode=$('in-kode').value.trim();
-    if(kode.length<6){ feil('Skriv inn hele koden.'); return; }
+    // Tåler at koden limes inn med mellomrom mellom sifrene
+    const kode = $('in-kode').value.replace(/\D/g, '');
+    if(kode.length < 6){ feil('Skriv inn hele koden.'); return; }
     feil(''); laas('btn-verifiser', true, 'Sjekker ...');
-    const {data, error} = await sb.auth.verifyOtp({email:ventetEpost, token:kode, type:'email'});
+
+    // Supabase merker koden ulikt avhengig av om brukeren er ny eller finnes
+    // fra før. Vi prøver typene i rekkefølge, og en avvist type bruker ikke
+    // opp koden. Konsollen viser hvilken som gikk gjennom.
+    let bruker = null, siste = null;
+    for(const type of ['email', 'signup', 'magiclink']){
+      const r = await sb.auth.verifyOtp({email:ventetEpost, token:kode, type});
+      if(!r.error && r.data && r.data.user){
+        console.info('[hytteboka] verifyOtp ok med type=' + type);
+        bruker = r.data.user; break;
+      }
+      siste = r.error;
+      console.warn('[hytteboka] verifyOtp type=' + type + ':',
+                   r.error && r.error.status, r.error && r.error.message);
+    }
     laas('btn-verifiser', false, 'Logg inn');
-    if(error || !data.user){
-      if(error) console.warn('[hytteboka] verifyOtp:', error.status, error.message);
-      feil('Koden stemmer ikke, eller den er utløpt. Prøv igjen.');
+    if(!bruker){
+      feil('Koden stemmer ikke, eller den er utløpt. Husk at bare den nyeste koden '+
+           'virker. Be om en ny og prøv igjen.' + (siste ? ' (' + siste.message + ')' : ''));
       return;
     }
-    etterInnlogging(data.user.id);
+    etterInnlogging(bruker.id);
   };
   $('btn-navn').onclick = async () => {
     const n=$('in-navn').value.trim();
