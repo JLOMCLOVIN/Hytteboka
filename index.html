@@ -161,7 +161,7 @@
     <section id="skjerm-login" class="login">
       <p class="etikett">Privat hyttebok</p>
       <h1 class="hb-tittel">Hvilke hytter har du vært på?</h1>
-      <p class="hb-undertittel">DNT-hytter fra Agder til Finnmark. Kryss av dem du har besøkt, og se hva de andre har fått med seg. Ingen passord, du får en engangskode på e-post.</p>
+      <p class="hb-undertittel">DNT-hytter fra Agder til Finnmark. Kryss av dem du har besøkt, og se hva de andre har fått med seg. Ingen passord: skriv inn e-postadressen din, og du får en engangskode. Er det første gang, blir brukeren din laget med det samme.</p>
 
       <div class="kort" style="margin-top:24px">
         <div id="steg-epost">
@@ -174,7 +174,7 @@
           <p id="vis-epost" style="font-family:var(--mono);font-size:14px;margin:4px 0 0"></p>
           <div class="beskjed" id="beskjed"></div>
           <label class="lbl" for="in-kode">Sekssifret kode</label>
-          <input class="felt kode" id="in-kode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="······">
+          <input class="felt kode" id="in-kode" type="text" inputmode="numeric" maxlength="10" autocomplete="one-time-code" placeholder="······">
           <button class="knapp" id="btn-verifiser">Logg inn</button>
           <button class="knapp sekundar" id="btn-tilbake">Bruk en annen e-post</button>
         </div>
@@ -393,13 +393,17 @@
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)){ feil('Skriv en gyldig e-postadresse.'); return; }
     feil(''); laas('btn-send', true, 'Sender ...');
     ventetEpost = e;
-    // shouldCreateUser: false gjør at bare inviterte adresser får kode.
-    await sb.auth.signInWithOtp({email:e, options:{shouldCreateUser:false}});
-    // Samme svar uansett om adressen er invitert, ellers kan lista kartlegges.
+    // shouldCreateUser: true gjør at folk kan opprette bruker selv. Samme
+    // skjema virker for nye og gamle, så det trengs ingen egen signup-side.
+    // emailRedirectTo settes bevisst ikke, da behandler Supabase det som en
+    // kodeforespørsel og ikke en magisk lenke.
+    const {error} = await sb.auth.signInWithOtp({email:e, options:{shouldCreateUser:true}});
+    // Feilen vises ikke på skjermen, men logges slik at den kan feilsøkes.
+    if(error) console.warn('[hytteboka] signInWithOtp:', error.status, error.message);
     laas('btn-send', false, 'Send engangskode');
     $('vis-epost').textContent = e;
-    $('beskjed').textContent = 'Er adressen invitert, ligger det en kode i innboksen om et øyeblikk. '+
-      'Sjekk også søppelpost. Koden varer i én time.';
+    $('beskjed').textContent = 'Det ligger en sekssifret kode i innboksen om et øyeblikk. Sjekk også '+
+      'søppelpost. Koden varer i én time, og du kan be om en ny etter ett minutt.';
     $('steg-epost').hidden=true; $('steg-kode').hidden=false; $('in-kode').focus();
   };
   $('btn-tilbake').onclick = () => {
@@ -412,7 +416,11 @@
     feil(''); laas('btn-verifiser', true, 'Sjekker ...');
     const {data, error} = await sb.auth.verifyOtp({email:ventetEpost, token:kode, type:'email'});
     laas('btn-verifiser', false, 'Logg inn');
-    if(error || !data.user){ feil('Koden stemmer ikke, eller den er utløpt. Prøv igjen.'); return; }
+    if(error || !data.user){
+      if(error) console.warn('[hytteboka] verifyOtp:', error.status, error.message);
+      feil('Koden stemmer ikke, eller den er utløpt. Prøv igjen.');
+      return;
+    }
     etterInnlogging(data.user.id);
   };
   $('btn-navn').onclick = async () => {
