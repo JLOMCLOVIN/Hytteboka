@@ -167,7 +167,7 @@
     <section id="skjerm-login" class="login">
       <p class="etikett">Privat hyttebok</p>
       <h1 class="hb-tittel">Hvilke hytter har du vært på?</h1>
-      <p class="hb-undertittel">DNT-hytter fra Agder til Finnmark. Kryss av dem du har besøkt, og se hva de andre har fått med seg. Ingen passord, du får en engangskode på e-post.</p>
+      <p class="hb-undertittel">DNT-hytter fra Agder til Finnmark. Kryss av dem du har besøkt, og se hva de andre har fått med seg. Ingen passord: skriv inn e-postadressen din, og du får en engangskode. Er det første gang, blir brukeren din laget med det samme.</p>
 
       <div class="kort" style="margin-top:24px">
         <div id="steg-epost">
@@ -180,7 +180,7 @@
           <p id="vis-epost" style="font-family:var(--mono);font-size:14px;margin:4px 0 0"></p>
           <div class="beskjed" id="beskjed"></div>
           <label class="lbl" for="in-kode">Sekssifret kode</label>
-          <input class="felt kode" id="in-kode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="······">
+          <input class="felt kode" id="in-kode" type="text" inputmode="numeric" maxlength="10" autocomplete="one-time-code" placeholder="······">
           <button class="knapp" id="btn-verifiser">Logg inn</button>
           <button class="knapp sekundar" id="btn-tilbake">Bruk en annen e-post</button>
         </div>
@@ -320,26 +320,36 @@
 
   /* ===================== DATALAG ===================== */
   /* ======================================================================
-     FYLL INN DE TO VERDIENE UNDER. Du finner dem i Supabase under
-     Project Settings, API: "Project URL" og "anon public" nøkkelen.
-     Anon-nøkkelen er laget for å ligge i nettleseren. Sikkerheten ligger i
-     RLS-reglene i databasen, ikke i at nøkkelen er hemmelig.
+     FYLL INN DE TO VERDIENE UNDER.
+
+     SUPABASE_URL   Project Overview, eller Settings > API. Skal ende
+                    på .supabase.co
+     SUPABASE_KEY   Settings > API Keys > Publishable key.
+                    Starter med sb_publishable_
+                    Har prosjektet bare gamle nøkler, bruk anon public
+                    fra fanen Legacy API Keys i stedet.
+
+     Publishable key er laget for å ligge i nettleseren. Sikkerheten ligger
+     i RLS-reglene i databasen, ikke i at nøkkelen er hemmelig.
+
+     ADVARSEL: lim aldri inn secret key, sb_secret_..., her. Den går forbi
+     alle tilgangsregler og hører bare til på en server.
      ====================================================================== */
   const SUPABASE_URL = 'https://hmutcnvixydixymfldut.supabase.co';
-  const SUPABASE_ANON_KEY = 'DIN-ANON-NOKKEL';
+  const SUPABASE_KEY = 'sb_publishable_kMmJIYAILLcjAzP2NtYZ9w_vEPYuAor';
   /* ==================================================================== */
 
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   let ventetEpost = null;
 
   function laas(id, av, tekst){
-    const b=$(id); b.disabled=av; if(tekst) b.textContent=tekst;
+    const b = $(id); b.disabled = av; if(tekst) b.textContent = tekst;
   }
 
   async function hentHytter(){
     const {data, error} = await sb.from('hytter')
       .select('id,navn,kategori,servicenivaa,lat,lon,moh,omrade,aktiv').order('navn');
-    if(error) throw error;
+    if(error){ error.message = 'tabellen hytter: ' + error.message; throw error; }
     return data.map(h => ({
       id:h.id, navn:h.navn, kat:(KATNR[h.kategori] !== undefined ? KATNR[h.kategori] : 2),
       niva:h.servicenivaa || KAT[KATNR[h.kategori]||2].t,
@@ -351,79 +361,110 @@
       sb.from('profiler').select('bruker_id,visningsnavn'),
       sb.from('besok').select('bruker_id,hytte_id,type')
     ]);
-    if(p.error) throw p.error;
-    if(b.error) throw b.error;
-    const nyFolk={}, nyBesok={};
-    p.data.forEach(r => { nyFolk[r.bruker_id]=r.visningsnavn; nyBesok[r.bruker_id]={}; });
-    b.data.forEach(r => { (nyBesok[r.bruker_id]=nyBesok[r.bruker_id]||{})[r.hytte_id]=r.type; });
+    if(p.error){ p.error.message = 'tabellen profiler: ' + p.error.message; throw p.error; }
+    if(b.error){ b.error.message = 'tabellen besok: ' + b.error.message; throw b.error; }
+    const nyFolk = {}, nyBesok = {};
+    p.data.forEach(r => { nyFolk[r.bruker_id] = r.visningsnavn; nyBesok[r.bruker_id] = {}; });
+    b.data.forEach(r => { (nyBesok[r.bruker_id] = nyBesok[r.bruker_id] || {})[r.hytte_id] = r.type; });
     return {folk:nyFolk, besok:nyBesok};
   }
 
   /* Skriver optimistisk: grensesnittet oppdateres først, databasen etterpå.
      Feiler skrivingen, rulles endringen tilbake. */
   async function settType(id, type){
-    if(!besok[meg]) besok[meg]={};
-    const m=besok[meg], fra=m[id], fjern = fra===type;
-    if(fjern) delete m[id]; else m[id]=type;
+    if(!besok[meg]) besok[meg] = {};
+    const m = besok[meg], fra = m[id], fjern = fra === type;
+    if(fjern) delete m[id]; else m[id] = type;
     alt(); tegnKart();
     const {error} = fjern
       ? await sb.from('besok').delete().eq('bruker_id', meg).eq('hytte_id', id)
       : await sb.from('besok').upsert({bruker_id:meg, hytte_id:id, type, endret:new Date().toISOString()},
                                       {onConflict:'bruker_id,hytte_id'});
     if(error){
-      if(fra) m[id]=fra; else delete m[id];
+      console.warn('[hytteboka] lagring feilet:', error.code, error.message);
+      if(fra) m[id] = fra; else delete m[id];
       alt(); tegnKart();
       toast('Klarte ikke å lagre. Sjekk nettet og prøv igjen.');
       return;
     }
-    toast(VED_ID[id].navn + (fjern ? ': fjernet' : (type==='natt' ? ': overnattet' : ': dagsbesøk')));
+    toast(VED_ID[id].navn + (fjern ? ': fjernet' : (type === 'natt' ? ': overnattet' : ': dagsbesøk')));
   }
 
   async function oppdaterAndre(){
     try{
       const d = await hentFolkOgBesok();
       folk = d.folk; besok = d.besok;
-      if(!besok[meg]) besok[meg]={};
+      if(!besok[meg]) besok[meg] = {};
       alt(); toast('Oppdatert');
-    }catch(e){ toast('Klarte ikke å hente oppdatering.'); }
+    }catch(e){
+      console.warn('[hytteboka] oppdatering feilet:', e && e.message);
+      toast('Klarte ikke å hente oppdatering.');
+    }
   }
 
   /* ---------- innlogging med engangskode ---------- */
   $('btn-send').onclick = async () => {
-    const e=$('in-epost').value.trim().toLowerCase();
+    const e = $('in-epost').value.trim().toLowerCase();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)){ feil('Skriv en gyldig e-postadresse.'); return; }
     feil(''); laas('btn-send', true, 'Sender ...');
     ventetEpost = e;
-    // shouldCreateUser: false gjør at bare inviterte adresser får kode.
-    await sb.auth.signInWithOtp({email:e, options:{shouldCreateUser:false}});
-    // Samme svar uansett om adressen er invitert, ellers kan lista kartlegges.
+    // shouldCreateUser: true gjør at folk kan opprette bruker selv. Samme
+    // skjema virker for nye og gamle, så det trengs ingen egen signup-side.
+    // emailRedirectTo settes bevisst ikke, da behandler Supabase det som en
+    // kodeforespørsel og ikke en magisk lenke.
+    const {error} = await sb.auth.signInWithOtp({email:e, options:{shouldCreateUser:true}});
+    // Feilen vises ikke på skjermen, men logges slik at den kan feilsøkes.
+    if(error) console.warn('[hytteboka] signInWithOtp:', error.status, error.message);
     laas('btn-send', false, 'Send engangskode');
     $('vis-epost').textContent = e;
-    $('beskjed').textContent = 'Er adressen invitert, ligger det en kode i innboksen om et øyeblikk. '+
-      'Sjekk også søppelpost. Koden varer i én time.';
-    $('steg-epost').hidden=true; $('steg-kode').hidden=false; $('in-kode').focus();
+    $('beskjed').textContent = 'Det ligger en sekssifret kode i innboksen om et øyeblikk. Sjekk også '+
+      'søppelpost. Koden varer i én time, og du kan be om en ny etter ett minutt.';
+    $('steg-epost').hidden = true; $('steg-kode').hidden = false; $('in-kode').focus();
   };
   $('btn-tilbake').onclick = () => {
-    feil(''); $('in-kode').value='';
-    $('steg-kode').hidden=true; $('steg-epost').hidden=false;
+    feil(''); $('in-kode').value = '';
+    $('steg-kode').hidden = true; $('steg-epost').hidden = false;
   };
   $('btn-verifiser').onclick = async () => {
-    const kode=$('in-kode').value.trim();
-    if(kode.length<6){ feil('Skriv inn hele koden.'); return; }
+    // Tåler at koden limes inn med mellomrom mellom sifrene
+    const kode = $('in-kode').value.replace(/\D/g, '');
+    if(kode.length < 6){ feil('Skriv inn hele koden.'); return; }
     feil(''); laas('btn-verifiser', true, 'Sjekker ...');
-    const {data, error} = await sb.auth.verifyOtp({email:ventetEpost, token:kode, type:'email'});
+
+    // Supabase merker koden ulikt avhengig av om brukeren er ny eller finnes
+    // fra før. Vi prøver typene i rekkefølge, og en avvist type bruker ikke
+    // opp koden. Konsollen viser hvilken som gikk gjennom.
+    let bruker = null, siste = null;
+    for(const type of ['email', 'signup', 'magiclink']){
+      const r = await sb.auth.verifyOtp({email:ventetEpost, token:kode, type});
+      if(!r.error && r.data && r.data.user){
+        console.info('[hytteboka] verifyOtp ok med type=' + type);
+        bruker = r.data.user; break;
+      }
+      siste = r.error;
+      console.warn('[hytteboka] verifyOtp type=' + type + ':',
+                   r.error && r.error.status, r.error && r.error.message);
+    }
     laas('btn-verifiser', false, 'Logg inn');
-    if(error || !data.user){ feil('Koden stemmer ikke, eller den er utløpt. Prøv igjen.'); return; }
-    etterInnlogging(data.user.id);
+    if(!bruker){
+      feil('Koden stemmer ikke, eller den er utløpt. Husk at bare den nyeste koden '+
+           'virker. Be om en ny og prøv igjen.' + (siste ? ' (' + siste.message + ')' : ''));
+      return;
+    }
+    etterInnlogging(bruker.id);
   };
   $('btn-navn').onclick = async () => {
-    const n=$('in-navn').value.trim();
-    if(n.length<2){ feil('Skriv inn et navn med minst to tegn.'); return; }
+    const n = $('in-navn').value.trim();
+    if(n.length < 2){ feil('Skriv inn et navn med minst to tegn.'); return; }
     feil(''); laas('btn-navn', true, 'Lagrer ...');
     const {error} = await sb.from('profiler').insert({bruker_id:meg, visningsnavn:n});
     laas('btn-navn', false, 'Lagre og fortsett');
-    if(error){ feil('Klarte ikke å lagre navnet. Prøv igjen.'); return; }
-    folk[meg]=n; besok[meg]=besok[meg]||{};
+    if(error){
+      console.warn('[hytteboka] lagring av navn feilet:', error.code, error.message);
+      feil('Klarte ikke å lagre navnet. ' + error.message);
+      return;
+    }
+    folk[meg] = n; besok[meg] = besok[meg] || {};
     visApp();
   };
   $('btn-utlogg').onclick = async () => {
@@ -434,30 +475,45 @@
   async function etterInnlogging(brukerId){
     meg = brukerId;
     try{
-      const [hytter, d] = await Promise.all([hentHytter(), hentFolkOgBesok()]);
+      const hytter = await hentHytter();
+      if(!hytter.length){
+        feil('Databasen svarte, men hyttetabellen er tom. Er hytter.csv importert?');
+        return;
+      }
       byggIndeks(hytter);
+      const d = await hentFolkOgBesok();
       folk = d.folk; besok = d.besok;
-      if(!besok[meg]) besok[meg]={};
+      if(!besok[meg]) besok[meg] = {};
     }catch(e){
-      feil('Klarte ikke å hente data fra databasen. Prøv å laste siden på nytt.');
+      console.error('[hytteboka] datahenting feilet:', e);
+      const detalj = [e && e.code, e && e.message, e && e.hint].filter(Boolean).join(' · ');
+      feil('Klarte ikke å hente data fra databasen. ' + (detalj || 'Ukjent feil.') +
+           ' Se konsollen med F12 for hele meldingen.');
       return;
     }
     if(!folk[meg]){
-      $('steg-epost').hidden=true; $('steg-kode').hidden=true;
-      $('steg-navn').hidden=false; $('in-navn').focus();
+      $('steg-epost').hidden = true; $('steg-kode').hidden = true;
+      $('steg-navn').hidden = false; $('in-navn').focus();
       return;
     }
     visApp();
   }
   function visApp(){
     $('hei').textContent = folk[meg] || '';
-    $('skjerm-login').hidden=true; $('skjerm-app').hidden=false;
+    $('skjerm-login').hidden = true; $('skjerm-app').hidden = false;
     alt(); passKart();
   }
 
   async function start(){
-    if(SUPABASE_URL.indexOf('DITT-PROSJEKT') >= 0){
-      feil('Siden mangler oppsett: fyll inn SUPABASE_URL og SUPABASE_ANON_KEY i index.html.');
+    // Fanger både manglende oppsett og feil nøkkeltype
+    if(SUPABASE_URL.indexOf('DITT-PROSJEKT') >= 0 || SUPABASE_KEY.indexOf('DIN-') === 0 ||
+       SUPABASE_KEY.indexOf('NOKKEL') >= 0){
+      feil('Siden mangler oppsett: fyll inn SUPABASE_URL og SUPABASE_KEY i index.html.');
+      console.error('[hytteboka] SUPABASE_URL eller SUPABASE_KEY er ikke fylt inn.');
+      return;
+    }
+    if(SUPABASE_KEY.indexOf('sb_secret_') === 0){
+      feil('Feil nøkkel: dette er en secret key. Bruk publishable key i stedet.');
       return;
     }
     const {data} = await sb.auth.getSession();
