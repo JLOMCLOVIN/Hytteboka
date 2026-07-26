@@ -122,12 +122,15 @@
   .omr-bolk h3{font-family:var(--mono);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.1em;color:var(--dempet);margin:0 0 2px;padding-top:12px;border-top:1px solid var(--linje)}
   .utgatt{font-family:var(--mono);font-size:10px;color:var(--rod);text-transform:uppercase;letter-spacing:.06em}
 
+  .tabellskroll{overflow-x:auto;margin-top:4px}
+  .tabellskroll .tabell{min-width:440px}
   .tabell{width:100%;border-collapse:collapse;margin-top:4px}
   .tabell th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--dempet);padding:0 8px 8px 0;border-bottom:1px solid var(--linje)}
   .tabell th.h{text-align:right}
   .kolikon .ikon{font-size:13px;margin-left:auto}
+  .tabell th.h{padding-right:6px}
   .tabell td{padding:11px 8px 11px 0;border-bottom:1px solid var(--linje);font-size:14px;vertical-align:middle}
-  .tabell td.n{font-family:var(--mono);font-size:13px;text-align:right;color:var(--dempet);width:46px}
+  .tabell td.n{font-family:var(--mono);font-size:13px;text-align:right;color:var(--dempet);width:38px;padding-right:6px}
   .tabell td.n b{color:var(--skifer);font-weight:600}
   .tabell tr.klikk{cursor:pointer}
   .tabell tr.klikk:hover td{background:var(--papir)}
@@ -265,14 +268,26 @@
     {n:'betjent', t:'Betjent', tf:'Betjente'},
     {n:'selvbetjent', t:'Selvbetjent', tf:'Selvbetjente'},
     {n:'ubetjent', t:'Ubetjent', tf:'Ubetjente'},
-    {n:'nodbu', t:'Nødbu', tf:'Nødbuer'}
+    {n:'nodbu', t:'Nødbu', tf:'Nødbuer'},
+    {n:'gapahuk', t:'Gapahuk', tf:'Gapahuker'},
+    {n:'servering', t:'Servering', tf:'Serveringshytter'}
   ];
-  const KATNR = {betjent:0, selvbetjent:1, ubetjent:2, nodbu:3};
+  const KATNR = {betjent:0, selvbetjent:1, ubetjent:2, nodbu:3, gapahuk:4, servering:5};
   const IKON = {
     betjent:'<svg class="ikon" viewBox="0 0 100 100" aria-hidden="true"><rect x="7" y="7" width="86" height="86" rx="23" fill="currentColor"/></svg>',
     selvbetjent:'<svg class="ikon" viewBox="0 0 100 100" aria-hidden="true"><path d="M73 28 73 73 28 73Z" fill="currentColor"/><rect x="14" y="14" width="72" height="72" rx="18" fill="none" stroke="currentColor" stroke-width="14"/></svg>',
     ubetjent:'<svg class="ikon" viewBox="0 0 100 100" aria-hidden="true"><rect x="14" y="14" width="72" height="72" rx="18" fill="none" stroke="currentColor" stroke-width="14"/></svg>',
-    nodbu:'<svg class="ikon" viewBox="0 0 100 100" aria-hidden="true"><path d="M50 21 86 85 14 85Z" fill="none" stroke="currentColor" stroke-width="12"/><path d="M3 86H97" stroke="currentColor" stroke-width="13"/></svg>'
+    nodbu:'<svg class="ikon" viewBox="0 0 100 100" aria-hidden="true"><path d="M50 21 86 85 14 85Z" fill="none" stroke="currentColor" stroke-width="12"/><path d="M3 86H97" stroke="currentColor" stroke-width="13"/></svg>',
+    // gapahuk: skråtak over grunnlinje. Dekker også dagsturhytter.
+    gapahuk:'<svg class="ikon" viewBox="0 0 100 100" aria-hidden="true">'+
+      '<path d="M14 74 86 22" fill="none" stroke="currentColor" stroke-width="13" stroke-linecap="round"/>'+
+      '<path d="M14 74V44" fill="none" stroke="currentColor" stroke-width="13" stroke-linecap="round"/>'+
+      '<path d="M3 84H97" stroke="currentColor" stroke-width="13" stroke-linecap="round"/></svg>',
+    // servering: kaffekopp med skål
+    servering:'<svg class="ikon" viewBox="0 0 100 100" aria-hidden="true">'+
+      '<path d="M16 20H64V52A24 24 0 0 1 40 76H40A24 24 0 0 1 16 52Z" fill="currentColor"/>'+
+      '<path d="M68 30q18 0 18 16t-17 16" fill="none" stroke="currentColor" stroke-width="11"/>'+
+      '<path d="M8 88H80" stroke="currentColor" stroke-width="12" stroke-linecap="round"/></svg>'
   };
   const IK = i => IKON[KAT[i].n];
   // Z for overnatting, kaffekopp for dagsbesøk
@@ -281,10 +296,11 @@
       'stroke-linecap="round" stroke-linejoin="round"/>'+
     '<path d="M12 58H40L12 84H40" fill="none" stroke="currentColor" stroke-width="11" '+
       'stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  // Sol for dagsbesøk, som motstykke til søvn-z. Koppen er nå kategorien servering.
   const M_DAG  = '<svg class="mk" viewBox="0 0 100 100" aria-hidden="true">'+
-    '<path d="M18 26H64L57 66H25Z" fill="currentColor"/>'+
-    '<path d="M66 36q14 0 14 12t-13 12" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>'+
-    '<path d="M14 80H68" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round"/></svg>';
+    '<circle cx="50" cy="50" r="19" fill="currentColor"/>'+
+    '<g stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none">'+
+    '<path d="M50 9v11M50 80v11M9 50h11M80 50h11M21 21l8 8M71 71l8 8M79 21l-8 8M29 71l-8 8"/></g></svg>';
 
   const uten = s => String(s).toLowerCase().replace(/æ/g,'ae').replace(/ø/g,'o').replace(/å/g,'a')
                     .replace(/ä/g,'a').replace(/ö/g,'o').replace(/ü/g,'u').replace(/[éè]/g,'e');
@@ -667,6 +683,28 @@
   }
 
   function symbol(ctx,x,y,kat,r,farge,fyll){
+    if(kat===4){                                    // gapahuk: skråtak over grunnlinje
+      const b = y+r*0.7;
+      ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.lineWidth=Math.max(1.3,r*0.44); ctx.strokeStyle=farge;
+      ctx.beginPath(); ctx.moveTo(x-r*0.85,b-r*0.3); ctx.lineTo(x+r*0.95,y-r*0.95); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x-r*0.85,b-r*0.3); ctx.lineTo(x-r*0.85,b); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x-r*1.25,b); ctx.lineTo(x+r*1.25,b); ctx.stroke();
+      ctx.lineCap='butt';
+      return;
+    }
+    if(kat===5){                                    // servering: kaffekopp
+      const t = y-r*0.75, b = y+r*0.5;
+      ctx.beginPath();
+      ctx.moveTo(x-r*0.8,t); ctx.lineTo(x+r*0.35,t); ctx.lineTo(x+r*0.15,b); ctx.lineTo(x-r*0.6,b);
+      ctx.closePath(); ctx.fillStyle=farge; ctx.fill();
+      ctx.lineWidth=Math.max(1,r*0.28); ctx.strokeStyle=farge; ctx.lineCap='round';
+      ctx.beginPath(); ctx.arc(x+r*0.6, y-r*0.15, r*0.42, -1.2, 1.2); ctx.stroke();
+      ctx.lineWidth=Math.max(1.2,r*0.32);
+      ctx.beginPath(); ctx.moveTo(x-r*1.1,y+r*0.9); ctx.lineTo(x+r*0.75,y+r*0.9); ctx.stroke();
+      ctx.lineCap='butt';
+      return;
+    }
     if(kat===3){                                    // nødbu: trekant på grunnlinje
       const b=y+r*0.72, w=r*1.02;
       ctx.beginPath(); ctx.moveTo(x,y-r*0.92); ctx.lineTo(x+w,b); ctx.lineTo(x-w,b); ctx.closePath();
@@ -709,12 +747,15 @@
       z(-2.9, 2.9, 1.9, 1.7, 1.5);
       z( 2.0, -2.2, 3.0, 2.6, 2.0);
     }else{
-      ctx.beginPath();
-      ctx.moveTo(-4.6,-4.4); ctx.lineTo(2.4,-4.4); ctx.lineTo(1.3,2.6); ctx.lineTo(-3.5,2.6);
-      ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.arc(0, 0, 2.2, 0, 6.2832); ctx.fill();
       ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(3.1,-1.4, 2.3, -1.15, 1.15); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(-5.4,4.9); ctx.lineTo(3.2,4.9); ctx.stroke();
+      for(let i = 0; i < 8; i++){
+        const a = i*Math.PI/4;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a)*3.6, Math.sin(a)*3.6);
+        ctx.lineTo(Math.cos(a)*5.4, Math.sin(a)*5.4);
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }
@@ -854,7 +895,7 @@
   function tegnMin(){
     const m=mine(), ider=Object.keys(m).filter(i=>VED_ID[i]);
     let natt=0; ider.forEach(i=>{ if(m[i]==='natt') natt++; });
-    const perKat=[0,0,0,0]; ider.forEach(i=>perKat[VED_ID[i].kat]++);
+    const perKat=KAT.map(()=>0); ider.forEach(i=>perKat[VED_ID[i].kat]++);
     const omr={}; ider.forEach(i=>{ const h=VED_ID[i]; (omr[h.omrade]=omr[h.omrade]||[]).push(h); });
     const hoyest = ider.map(i=>VED_ID[i]).sort((a,b)=>b.moh-a.moh)[0];
     const utgatte = ider.filter(i=>!VED_ID[i].aktiv).length;
@@ -899,7 +940,7 @@
   function tegnAlle(){
     const liste = Object.keys(folk).map(id => {
       const b=besok[id]||{}, ider=Object.keys(b).filter(i=>VED_ID[i]);
-      const perKat=[0,0,0,0]; let natt=0;
+      const perKat=KAT.map(()=>0); let natt=0;
       ider.forEach(i => { perKat[VED_ID[i].kat]++; if(b[i]==='natt') natt++; });
       return {id, navn:folk[id]||'Ukjent', perKat, natt, sum:ider.length, ider};
     }).sort((a,b)=> b.sum-a.sum || b.natt-a.natt || a.navn.localeCompare(b.navn,'no'));
@@ -912,7 +953,7 @@
     let html = '<div class="bolk" style="margin-top:0"><h2>Hvem har vært flest steder</h2>';
     if(!liste.length) html += '<p class="tom">Ingen har registrert noe ennå.</p>';
     else{
-      html += '<table class="tabell"><thead><tr><th></th><th>Navn</th>'+
+      html += '<div class="tabellskroll"><table class="tabell"><thead><tr><th></th><th>Navn</th>'+
         KAT.map((k,i)=>'<th class="h" title="'+k.tf+'"><span class="kolikon">'+IK(i)+'</span></th>').join('')+
         '<th class="h">Sum</th></tr></thead><tbody>';
       liste.forEach((p,i) => {
@@ -921,13 +962,13 @@
           p.perKat.map(v=>'<td class="n">'+(v||'<span style="opacity:.35">0</span>')+'</td>').join('')+
           '<td class="n"><b>'+p.sum+'</b></td></tr>';
         if(apen===p.id){
-          html += '<tr><td></td><td colspan="5"><div class="detalj">'+
+          html += '<tr><td></td><td colspan="' + (KAT.length+2) + '"><div class="detalj">'+
             (p.ider.length ? p.ider.map(i=>VED_ID[i]).sort((a,b)=>a.navn.localeCompare(b.navn,'no'))
               .map(h => '<span>'+((besok[p.id]||{})[h.id]==='natt'?M_NATT:M_DAG)+esc(h.navn)+'</span>').join('')
               : 'Ingen hytter registrert ennå.')+'</div></td></tr>';
         }
       });
-      html += '</tbody></table><div class="nokkel" style="margin-top:14px">'+
+      html += '</tbody></table></div><div class="nokkel" style="margin-top:14px">'+
         KAT.map(k=>'<i>'+IKON[k.n]+k.tf+'</i>').join('')+'</div>';
     }
     html += '</div>';
