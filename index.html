@@ -123,11 +123,13 @@
   .utgatt{font-family:var(--mono);font-size:10px;color:var(--rod);text-transform:uppercase;letter-spacing:.06em}
 
   .tabellskroll{overflow-x:auto;margin-top:4px}
-  .tabellskroll .tabell{min-width:440px}
+  .tabellskroll .tabell{min-width:560px}
   .tabell{width:100%;border-collapse:collapse;margin-top:4px}
   .tabell th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--dempet);padding:0 8px 8px 0;border-bottom:1px solid var(--linje)}
   .tabell th.h{text-align:right}
   .kolikon .ikon{font-size:13px;margin-left:auto}
+  .kolikon .mk{font-size:13px;margin-left:auto;color:var(--blekk)}
+  .tabell .b{background:var(--blekk-lys)}
   .tabell th.h{padding-right:6px}
   .tabell td{padding:11px 8px 11px 0;border-bottom:1px solid var(--linje);font-size:14px;vertical-align:middle}
   .tabell td.n{font-family:var(--mono);font-size:13px;text-align:right;color:var(--dempet);width:38px;padding-right:6px}
@@ -138,6 +140,10 @@
   .detalj{font-size:13px;color:var(--dempet);line-height:1.7;padding:2px 0 14px}
   .detalj span{display:inline-flex;align-items:center;gap:5px;margin-right:12px;white-space:nowrap}
   .detalj span .mk{font-size:10px;color:var(--blekk)}
+  .sml{display:flex;gap:18px;flex-wrap:wrap;padding:10px 0 2px;font-size:12px;color:var(--dempet)}
+  .sml b{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--skifer);margin-right:4px}
+  h4.grp{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;
+         color:var(--dempet);margin:12px 0 3px}
 
   .fot{margin-top:44px;font-size:12px;color:var(--dempet);line-height:1.6;border-top:1px solid var(--linje);padding-top:14px}
   .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--skifer);color:#fff;font-size:13px;padding:10px 16px;opacity:0;transition:opacity .18s;pointer-events:none;z-index:20}
@@ -269,7 +275,7 @@
     {n:'selvbetjent', t:'Selvbetjent', tf:'Selvbetjente'},
     {n:'ubetjent', t:'Ubetjent', tf:'Ubetjente'},
     {n:'nodbu', t:'Nødbu', tf:'Nødbuer'},
-    {n:'gapahuk', t:'Gapahuk', tf:'Gapahuker'},
+    {n:'gapahuk', t:'Gapahuk', tf:'Gapahuker', tl:'Gapahuk og dagsturhytte'},
     {n:'servering', t:'Servering', tf:'Serveringshytter'}
   ];
   const KATNR = {betjent:0, selvbetjent:1, ubetjent:2, nodbu:3, gapahuk:4, servering:5};
@@ -278,11 +284,12 @@
     selvbetjent:'<svg class="ikon" viewBox="0 0 100 100" aria-hidden="true"><path d="M73 28 73 73 28 73Z" fill="currentColor"/><rect x="14" y="14" width="72" height="72" rx="18" fill="none" stroke="currentColor" stroke-width="14"/></svg>',
     ubetjent:'<svg class="ikon" viewBox="0 0 100 100" aria-hidden="true"><rect x="14" y="14" width="72" height="72" rx="18" fill="none" stroke="currentColor" stroke-width="14"/></svg>',
     nodbu:'<svg class="ikon" viewBox="0 0 100 100" aria-hidden="true"><path d="M50 21 86 85 14 85Z" fill="none" stroke="currentColor" stroke-width="12"/><path d="M3 86H97" stroke="currentColor" stroke-width="13"/></svg>',
-    // gapahuk: skråtak over grunnlinje. Dekker også dagsturhytter.
+    // gapahuk: firkantramme med skråtak, bakvegg og grunnlinje.
+    // Dekker også dagsturhytter. Figuren i originalen er tatt ut for lesbarhet.
     gapahuk:'<svg class="ikon" viewBox="0 0 100 100" aria-hidden="true">'+
-      '<path d="M14 74 86 22" fill="none" stroke="currentColor" stroke-width="13" stroke-linecap="round"/>'+
-      '<path d="M14 74V44" fill="none" stroke="currentColor" stroke-width="13" stroke-linecap="round"/>'+
-      '<path d="M3 84H97" stroke="currentColor" stroke-width="13" stroke-linecap="round"/></svg>',
+      '<path d="M84 18 27 53V80" fill="none" stroke="currentColor" stroke-width="11" '+
+        'stroke-linejoin="miter" stroke-linecap="butt"/>'+
+      '<path d="M6 88H94" fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="round"/></svg>',
     // servering: kaffekopp med skål
     servering:'<svg class="ikon" viewBox="0 0 100 100" aria-hidden="true">'+
       '<path d="M16 20H64V52A24 24 0 0 1 40 76H40A24 24 0 0 1 16 52Z" fill="currentColor"/>'+
@@ -290,6 +297,7 @@
       '<path d="M8 88H80" stroke="currentColor" stroke-width="12" stroke-linecap="round"/></svg>'
   };
   const IK = i => IKON[KAT[i].n];
+  const TF = k => k.tl || k.tf;          // etikett i tegnforklaringene
   // Z for overnatting, kaffekopp for dagsbesøk
   const M_NATT = '<svg class="mk" viewBox="0 0 100 100" aria-hidden="true">'+
     '<path d="M50 16H88L50 50H88" fill="none" stroke="currentColor" stroke-width="13" '+
@@ -683,13 +691,16 @@
   }
 
   function symbol(ctx,x,y,kat,r,farge,fyll){
-    if(kat===4){                                    // gapahuk: skråtak over grunnlinje
-      const b = y+r*0.7;
-      ctx.lineCap='round'; ctx.lineJoin='round';
-      ctx.lineWidth=Math.max(1.3,r*0.44); ctx.strokeStyle=farge;
-      ctx.beginPath(); ctx.moveTo(x-r*0.85,b-r*0.3); ctx.lineTo(x+r*0.95,y-r*0.95); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x-r*0.85,b-r*0.3); ctx.lineTo(x-r*0.85,b); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x-r*1.25,b); ctx.lineTo(x+r*1.25,b); ctx.stroke();
+    if(kat===4){                        // gapahuk: skråtak, bakvegg og grunnlinje, uten ramme
+      ctx.lineCap='butt'; ctx.lineJoin='miter';
+      ctx.strokeStyle=farge;
+      ctx.beginPath();
+      ctx.moveTo(x+r*0.82, y-r*0.80);
+      ctx.lineTo(x-r*0.55, y+r*0.04);
+      if(r >= 4.2) ctx.lineTo(x-r*0.55, y+r*0.68);   // bakveggen blir en klump under 8 px
+      ctx.lineWidth=Math.max(1.4, r*0.34); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x-r*1.15, y+r*0.85); ctx.lineTo(x+r*1.15, y+r*0.85);
+      ctx.lineWidth=Math.max(1.3, r*0.32); ctx.lineCap='round'; ctx.stroke();
       ctx.lineCap='butt';
       return;
     }
@@ -937,12 +948,37 @@
   });
 
   /* ---------- alle sammen ---------- */
+  /* Åpner man en annen person, vises hva man har felles og hva hver har alene. */
+  function detaljer(p){
+    const deres = besok[p.id] || {}, mitt = mine();
+    const liste = (ider, kilde) => ider.map(i => VED_ID[i]).filter(Boolean)
+      .sort((a,b) => a.navn.localeCompare(b.navn,'no'))
+      .map(h => '<span>'+(kilde[h.id]==='natt'?M_NATT:M_DAG)+esc(h.navn)+'</span>').join('');
+    if(p.id === meg)
+      return '<div class="detalj">'+(p.ider.length ? liste(p.ider, deres)
+             : 'Du har ikke krysset av noen hytter ennå.')+'</div>';
+
+    const felles = p.ider.filter(i => mitt[i]);
+    const bareDeres = p.ider.filter(i => !mitt[i]);
+    const bareMitt = Object.keys(mitt).filter(i => VED_ID[i] && !deres[i]);
+    const navn = esc(p.navn);
+    if(!felles.length && !bareDeres.length && !bareMitt.length)
+      return '<div class="detalj">Ingen registreringer å sammenligne ennå.</div>';
+    let ut = '<div class="sml"><span><b>'+felles.length+'</b> felles</span>'+
+             '<span><b>'+bareMitt.length+'</b> bare du</span>'+
+             '<span><b>'+bareDeres.length+'</b> bare '+navn+'</span></div>';
+    if(felles.length)    ut += '<h4 class="grp">Begge har vært her</h4><div class="detalj">'+liste(felles, deres)+'</div>';
+    if(bareMitt.length)  ut += '<h4 class="grp">Bare du</h4><div class="detalj">'+liste(bareMitt, mitt)+'</div>';
+    if(bareDeres.length) ut += '<h4 class="grp">Bare '+navn+'</h4><div class="detalj">'+liste(bareDeres, deres)+'</div>';
+    return ut;
+  }
+
   function tegnAlle(){
     const liste = Object.keys(folk).map(id => {
       const b=besok[id]||{}, ider=Object.keys(b).filter(i=>VED_ID[i]);
       const perKat=KAT.map(()=>0); let natt=0;
       ider.forEach(i => { perKat[VED_ID[i].kat]++; if(b[i]==='natt') natt++; });
-      return {id, navn:folk[id]||'Ukjent', perKat, natt, sum:ider.length, ider};
+      return {id, navn:folk[id]||'Ukjent', perKat, natt, dag:ider.length-natt, sum:ider.length, ider};
     }).sort((a,b)=> b.sum-a.sum || b.natt-a.natt || a.navn.localeCompare(b.navn,'no'));
 
     const teller={};
@@ -950,26 +986,28 @@
     const topp = Object.keys(teller)
       .sort((a,b)=> teller[b]-teller[a] || VED_ID[a].navn.localeCompare(VED_ID[b].navn,'no')).slice(0,12);
 
-    let html = '<div class="bolk" style="margin-top:0"><h2>Hvem har vært flest steder</h2>';
+    let html = '<div class="bolk" style="margin-top:0"><h2>Hvem har vært flest steder</h2>'+
+      '<p class="kart-hint" style="margin:0 0 10px">Trykk på en rad for å sammenligne med dine egne hytter.</p>';
     if(!liste.length) html += '<p class="tom">Ingen har registrert noe ennå.</p>';
     else{
       html += '<div class="tabellskroll"><table class="tabell"><thead><tr><th></th><th>Navn</th>'+
-        KAT.map((k,i)=>'<th class="h" title="'+k.tf+'"><span class="kolikon">'+IK(i)+'</span></th>').join('')+
+        KAT.map((k,i)=>'<th class="h" title="'+TF(k)+'"><span class="kolikon">'+IK(i)+'</span></th>').join('')+
+        '<th class="h b" title="Overnattinger"><span class="kolikon">'+M_NATT+'</span></th>'+
+        '<th class="h b" title="Dagsbesøk"><span class="kolikon">'+M_DAG+'</span></th>'+
         '<th class="h">Sum</th></tr></thead><tbody>';
       liste.forEach((p,i) => {
         html += '<tr class="klikk" data-p="'+esc(p.id)+'"><td class="plass">'+(i+1)+'</td>'+
           '<td>'+esc(p.navn)+(p.id===meg?' <span style="color:var(--dempet)">(deg)</span>':'')+'</td>'+
           p.perKat.map(v=>'<td class="n">'+(v||'<span style="opacity:.35">0</span>')+'</td>').join('')+
+          '<td class="n b">'+(p.natt||'<span style="opacity:.35">0</span>')+'</td>'+
+          '<td class="n b">'+(p.dag||'<span style="opacity:.35">0</span>')+'</td>'+
           '<td class="n"><b>'+p.sum+'</b></td></tr>';
-        if(apen===p.id){
-          html += '<tr><td></td><td colspan="' + (KAT.length+2) + '"><div class="detalj">'+
-            (p.ider.length ? p.ider.map(i=>VED_ID[i]).sort((a,b)=>a.navn.localeCompare(b.navn,'no'))
-              .map(h => '<span>'+((besok[p.id]||{})[h.id]==='natt'?M_NATT:M_DAG)+esc(h.navn)+'</span>').join('')
-              : 'Ingen hytter registrert ennå.')+'</div></td></tr>';
-        }
+        if(apen===p.id)
+          html += '<tr><td></td><td colspan="'+(KAT.length+4)+'">'+detaljer(p)+'</td></tr>';
       });
       html += '</tbody></table></div><div class="nokkel" style="margin-top:14px">'+
-        KAT.map(k=>'<i>'+IKON[k.n]+k.tf+'</i>').join('')+'</div>';
+        KAT.map(k=>'<i>'+IKON[k.n]+TF(k)+'</i>').join('')+
+        '<i class="besok">'+M_NATT+'Overnattinger</i><i class="besok">'+M_DAG+'Dagsbesøk</i></div>';
     }
     html += '</div>';
 
@@ -997,8 +1035,8 @@
   function alt(){ tegnChips(); tegnListe(); tegnMin(); tegnAlle(); if(valgt) visInfo(valgt); }
 
   /* ---------- oppstart ---------- */
-  $('nokkel').innerHTML = KAT.map(k => '<i>'+IKON[k.n]+k.t+'</i>').join('');
-  $('kart-nokkel').innerHTML = KAT.map(k => '<i>'+IKON[k.n]+k.t+'</i>').join('') +
+  $('nokkel').innerHTML = KAT.map(k => '<i>'+IKON[k.n]+TF(k)+'</i>').join('');
+  $('kart-nokkel').innerHTML = KAT.map(k => '<i>'+IKON[k.n]+TF(k)+'</i>').join('') +
     '<i class="besok">'+M_NATT+'Overnattet</i><i class="besok">'+M_DAG+'Dagsbesøk</i>';
   $('in-epost').addEventListener('keydown', e => { if(e.key==='Enter') $('btn-send').click(); });
   $('in-kode').addEventListener('keydown', e => { if(e.key==='Enter') $('btn-verifiser').click(); });
