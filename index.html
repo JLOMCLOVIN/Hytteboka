@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Hytteboka</title>
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#E9EDE6">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M73 28 73 73 28 73Z' fill='%23C00000'/><rect x='14' y='14' width='72' height='72' rx='18' fill='none' stroke='%23C00000' stroke-width='14'/></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M73 28 73 73 28 73Z' fill='%23C00000'/><rect x='14' y='14' width='72' height='72' rx='18' fill='none' stroke='%23C00000' stroke-width='14'/></svg>">
 </head>
 <body>
 <style>
@@ -71,7 +74,8 @@
   .treff{font-family:var(--mono);font-size:12px;color:var(--dempet);margin:16px 0 0}
 
   .liste{margin-top:6px}
-  .rad{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--linje)}
+  .rad{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--linje);
+       content-visibility:auto;contain-intrinsic-size:auto 58px}
   .rad-ikon{font-size:15px}
   .rad-navn{flex:1;min-width:0;font-size:15px;font-weight:600;line-height:1.25}
   .rad-meta{font-family:var(--mono);font-size:11px;color:var(--dempet);display:block;font-weight:400;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -223,11 +227,17 @@
             <button class="tomsok" id="btn-tomsok" hidden aria-label="Tøm søket">×</button>
           </div>
           <select class="felt-sm" id="f-omrade"><option value="">Alle områder</option></select>
+          <select class="felt-sm" id="f-sort">
+            <option value="navn">Sorter på navn</option>
+            <option value="omrade">Sorter på område</option>
+            <option value="moh">Høyest først</option>
+            <option value="kat">Sorter på hyttetype</option>
+            <option value="ubesokt">Ikke besøkt først</option>
+          </select>
         </div>
         <div class="chips" id="f-kat"></div>
         <p class="treff" id="treff"></p>
         <div class="liste" id="liste"></div>
-        <button class="knapp sekundar mer" id="btn-mer" hidden>Vis flere</button>
       </section>
 
       <section class="fane" id="fane-kart" hidden>
@@ -313,18 +323,23 @@
   const uten = s => String(s).toLowerCase().replace(/æ/g,'ae').replace(/ø/g,'o').replace(/å/g,'a')
                     .replace(/ä/g,'a').replace(/ö/g,'o').replace(/ü/g,'u').replace(/[éè]/g,'e');
   const $ = id => document.getElementById(id);
+  /* Norsk kollasjon: æ, ø og å er egne bokstaver til slutt, ikke varianter av
+     a og o. Databasen sorterer engelsk, så all sortering gjøres her. */
+  const KOLL = new Intl.Collator('nb', {numeric:true});
+  const sortNavn = (a, b) => KOLL.compare(a, b);
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
   /* Hytter og besøk. H = alle, HA = aktive. besok[bruker][hytteId] = 'natt'|'dag' */
   let H = [], HA = [], VED_ID = {}, OMRADER = [], OMRPOS = [];
   let folk = {}, besok = {}, meg = null;
-  let sok='', fOmrade='', fKat=null, fBesok=null, grense=80, valgt=null, apen=null;
+  let sok='', fOmrade='', fKat=null, fBesok=null, fSort='navn', valgt=null, apen=null;
 
   function byggIndeks(hytter){
-    H = hytter.map(h => Object.assign({}, h, {sok: uten(h.navn + ' ' + h.omrade)}));
+    H = hytter.map(h => Object.assign({}, h, {sok: uten(h.navn + ' ' + h.omrade)}))
+              .sort((a, b) => sortNavn(a.navn, b.navn));
     HA = H.filter(h => h.aktiv);
     VED_ID = {}; H.forEach(h => VED_ID[h.id] = h);
-    OMRADER = [...new Set(HA.map(h => h.omrade))].sort((a,b) => a.localeCompare(b,'no'));
+    OMRADER = [...new Set(HA.map(h => h.omrade))].sort(sortNavn);
     OMRPOS = OMRADER.map(o => {
       const p = HA.filter(h => h.omrade === o);
       return [p.reduce((s,h)=>s+h.lat,0)/p.length, p.reduce((s,h)=>s+h.lon,0)/p.length, p.length];
@@ -399,7 +414,7 @@
     if(!besok[meg]) besok[meg] = {};
     const m = besok[meg], fra = m[id], fjern = fra === type;
     if(fjern) delete m[id]; else m[id] = type;
-    alt(); tegnKart();
+    alt(id); tegnKart();
     const {error} = fjern
       ? await sb.from('besok').delete().eq('bruker_id', meg).eq('hytte_id', id)
       : await sb.from('besok').upsert({bruker_id:meg, hytte_id:id, type, endret:new Date().toISOString()},
@@ -407,7 +422,7 @@
     if(error){
       console.warn('[hytteboka] lagring feilet:', error.code, error.message);
       if(fra) m[id] = fra; else delete m[id];
-      alt(); tegnKart();
+      alt(id); tegnKart();
       toast('Klarte ikke å lagre. Sjekk nettet og prøv igjen.');
       return;
     }
@@ -566,37 +581,55 @@
   }
   function filtrert(){
     const q = sok ? uten(sok) : '';
-    return HA.filter(h => passerFilter(h) &&
+    const treff = HA.filter(h => passerFilter(h) &&
       (!fOmrade || h.omrade === fOmrade) &&
       (!q || h.sok.indexOf(q) >= 0));
+    const m = mine();
+    if(fSort === 'omrade') treff.sort((a,b) => sortNavn(a.omrade,b.omrade) || sortNavn(a.navn,b.navn));
+    else if(fSort === 'moh') treff.sort((a,b) => (b.moh||0)-(a.moh||0) || sortNavn(a.navn,b.navn));
+    else if(fSort === 'kat') treff.sort((a,b) => a.kat-b.kat || sortNavn(a.navn,b.navn));
+    else if(fSort === 'ubesokt') treff.sort((a,b) => (m[a.id]?1:0)-(m[b.id]?1:0) || sortNavn(a.navn,b.navn));
+    return treff;                       // navnrekkefølgen ligger alt i HA
   }
   function pill(id,type,pa){
     return '<button class="pill'+(pa?' pa':'')+'" data-h="'+esc(id)+'" data-t="'+type+'" aria-pressed="'+!!pa+'">'+
            (type==='natt'?M_NATT+'Overnattet':M_DAG+'Dagsbesøk')+'</button>';
   }
-  function rad(h, t, ekstra){
-    return '<div class="rad'+(t?' mitt':'')+'">'+IK(h.kat)+
+  function radInnhold(h, t, ekstra){
+    return IK(h.kat)+
       '<div class="rad-navn">'+esc(h.navn)+(ekstra||'')+
       '<span class="rad-meta">'+esc(h.niva)+' · '+esc(h.omrade)+(h.moh?' · '+h.moh+' moh':'')+'</span></div>'+
-      '<div class="valg">'+pill(h.id,'dag',t==='dag')+pill(h.id,'natt',t==='natt')+'</div></div>';
+      '<div class="valg">'+pill(h.id,'dag',t==='dag')+pill(h.id,'natt',t==='natt')+'</div>';
+  }
+  function rad(h, t, ekstra){
+    return '<div class="rad'+(t?' mitt':'')+'" data-id="'+esc(h.id)+'">'+radInnhold(h,t,ekstra)+'</div>';
+  }
+  /* Oppdaterer bare raden som endret seg. Med 600 hytter i lista ville en full
+     opptegning gitt merkbar forsinkelse for hvert klikk. */
+  function oppdaterRad(id){
+    const h = VED_ID[id]; if(!h) return false;
+    const el = $('liste').querySelector('.rad[data-id="'+id+'"]');
+    if(!el) return false;
+    const t = mine()[id];
+    el.className = 'rad' + (t ? ' mitt' : '');
+    el.innerHTML = radInnhold(h, t, '');
+    return true;
   }
   function tegnListe(){
-    const treff=filtrert(), m=mine(), vist=treff.slice(0,grense);
-    $('treff').textContent = treff.length===0 ? 'Ingen treff'
-      : (treff.length===HA.length ? HA.length+' hytter' : treff.length+' av '+HA.length+' hytter')
-        + (vist.length<treff.length ? ', viser '+vist.length : '');
-    $('liste').innerHTML = vist.length ? vist.map(h => rad(h, m[h.id])).join('')
+    const treff = filtrert(), m = mine();
+    $('treff').textContent = treff.length === 0 ? 'Ingen treff'
+      : (treff.length === HA.length ? HA.length + ' hytter'
+                                    : treff.length + ' av ' + HA.length + ' hytter');
+    $('liste').innerHTML = treff.length ? treff.map(h => rad(h, m[h.id])).join('')
       : '<p class="tom">Ingen hytter passer søket. Prøv et annet navn, eller nullstill filtrene.</p>';
-    $('btn-mer').hidden = vist.length >= treff.length;
-    $('btn-mer').textContent = 'Vis flere ('+(treff.length-vist.length)+' igjen)';
   }
   $('liste').addEventListener('click', ev => {
     const b=ev.target.closest('.pill'); if(b) settType(b.dataset.h, b.dataset.t);
   });
-  $('btn-mer').onclick = () => { grense += 120; tegnListe(); };
-  $('sok').addEventListener('input', ev => { sok=ev.target.value; grense=80; $('btn-tomsok').hidden=!sok; tegnListe(); });
-  $('btn-tomsok').onclick = () => { sok=''; $('sok').value=''; $('btn-tomsok').hidden=true; grense=80; tegnListe(); };
-  $('f-omrade').onchange = ev => { fOmrade=ev.target.value; grense=80; tegnListe(); };
+  $('sok').addEventListener('input', ev => { sok=ev.target.value; $('btn-tomsok').hidden=!sok; tegnListe(); });
+  $('btn-tomsok').onclick = () => { sok=''; $('sok').value=''; $('btn-tomsok').hidden=true; tegnListe(); };
+  $('f-omrade').onchange = ev => { fOmrade=ev.target.value; tegnListe(); };
+  $('f-sort').onchange = ev => { fSort=ev.target.value; tegnListe(); };
   function tegnChips(){
     const m = mine();
     const besokt = HA.filter(h => m[h.id]).length;
@@ -620,7 +653,6 @@
     else if(k === 'ja')  fBesok = (fBesok === 'ja'  ? null : 'ja');
     else if(k === 'nei') fBesok = (fBesok === 'nei' ? null : 'nei');
     else fKat = (fKat === +k ? null : +k);
-    grense = 80;
     if(valgt && !passerFilter(valgt)) visInfo(null);
     tegnChips(); tegnListe(); tegnKart();
   }
@@ -934,10 +966,10 @@
       '</div></div>';
 
     html += '<div class="bolk"><h2>Hyttene dine</h2>';
-    const nav = Object.keys(omr).sort((a,b)=>omr[b].length-omr[a].length || a.localeCompare(b,'no'));
+    const nav = Object.keys(omr).sort((a,b)=>omr[b].length-omr[a].length || sortNavn(a,b));
     html += nav.length ? nav.map(o =>
       '<div class="omr-bolk"><h3>'+esc(o)+' · '+omr[o].length+'</h3>'+
-      omr[o].sort((a,b)=>a.navn.localeCompare(b.navn,'no'))
+      omr[o].sort((a,b)=>sortNavn(a.navn,b.navn))
         .map(h => rad(h, m[h.id], h.aktiv ? '' : ' <span class="utgatt">ikke i lista</span>')).join('')+
       '</div>').join('')
       : '<p class="tom">Du har ikke krysset av noen hytter ennå. Gå til Hyttene eller Kart for å begynne.</p>';
@@ -952,7 +984,7 @@
   function detaljer(p){
     const deres = besok[p.id] || {}, mitt = mine();
     const liste = (ider, kilde) => ider.map(i => VED_ID[i]).filter(Boolean)
-      .sort((a,b) => a.navn.localeCompare(b.navn,'no'))
+      .sort((a,b) => sortNavn(a.navn,b.navn))
       .map(h => '<span>'+(kilde[h.id]==='natt'?M_NATT:M_DAG)+esc(h.navn)+'</span>').join('');
     if(p.id === meg)
       return '<div class="detalj">'+(p.ider.length ? liste(p.ider, deres)
@@ -979,12 +1011,12 @@
       const perKat=KAT.map(()=>0); let natt=0;
       ider.forEach(i => { perKat[VED_ID[i].kat]++; if(b[i]==='natt') natt++; });
       return {id, navn:folk[id]||'Ukjent', perKat, natt, dag:ider.length-natt, sum:ider.length, ider};
-    }).sort((a,b)=> b.sum-a.sum || b.natt-a.natt || a.navn.localeCompare(b.navn,'no'));
+    }).sort((a,b)=> b.sum-a.sum || b.natt-a.natt || sortNavn(a.navn,b.navn));
 
     const teller={};
     liste.forEach(p => p.ider.forEach(i => teller[i]=(teller[i]||0)+1));
     const topp = Object.keys(teller)
-      .sort((a,b)=> teller[b]-teller[a] || VED_ID[a].navn.localeCompare(VED_ID[b].navn,'no')).slice(0,12);
+      .sort((a,b)=> teller[b]-teller[a] || sortNavn(VED_ID[a].navn, VED_ID[b].navn)).slice(0,12);
 
     let html = '<div class="bolk" style="margin-top:0"><h2>Hvem har vært flest steder</h2>'+
       '<p class="kart-hint" style="margin:0 0 10px">Trykk på en rad for å sammenligne med dine egne hytter.</p>';
@@ -1032,7 +1064,13 @@
     tegnAlle();
   });
 
-  function alt(){ tegnChips(); tegnListe(); tegnMin(); tegnAlle(); if(valgt) visInfo(valgt); }
+  function alt(endretId){
+    tegnChips();
+    // Er lista ellers uendret, oppdateres bare den ene raden som ble krysset av.
+    if(!(endretId && !fBesok && fSort !== 'ubesokt' && oppdaterRad(endretId))) tegnListe();
+    tegnMin(); tegnAlle();
+    if(valgt) visInfo(valgt);
+  }
 
   /* ---------- oppstart ---------- */
   $('nokkel').innerHTML = KAT.map(k => '<i>'+IKON[k.n]+TF(k)+'</i>').join('');
